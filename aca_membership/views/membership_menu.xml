@@ -1,0 +1,11 @@
+<odoo>
+
+  <menuitem 
+    id="membership_menu_root" 
+    name="Membership" 
+    web_icon="aca_membership,static/description/icon.png"
+    sequence="15" 
+    groups="base.group_user"
+   />
+
+</odoo>

@@ -1,0 +1,32 @@
+<odoo>
+  <record id="aca_membership_res_partner_form" model="ir.ui.view">
+    <field name="name">aca_membership.res.partner form</field>
+    <field name="model">res.partner</field>
+    <field name="inherit_id" ref="base.view_partner_form"/>
+    <field name="priority">20</field>
+    <field name="arch" type="xml">
+      <notebook position="inside">
+        <page string="Membership">
+          <group>
+            <group>
+              <field name="is_membership_provider" />
+              <field name="membership_provider_id" />
+              <field name="phone_office" />
+              <field name="job" />
+              <field name="godparent" />
+              <field name="godson" />
+
+            </group>
+            <group>
+              <field name="dateadh" />
+              <field name="vehicule_ids" />
+              <field name="npai" />
+              <field name="emergency_email" />
+              <field name="wrong_email" />
+            </group>
+          </group>
+        </page>
+      </notebook>
+    </field>
+  </record>
+</odoo>

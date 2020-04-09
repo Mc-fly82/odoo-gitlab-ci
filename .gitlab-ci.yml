@@ -1,0 +1,4 @@
+include:
+  - project: 'ic/referential/ci-tools'
+    ref: master
+    file: '/templates/.gitlab-ci-template.yml'

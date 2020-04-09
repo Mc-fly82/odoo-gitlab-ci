@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+
+  <record id="membership_tree" model="ir.ui.view">
+    <field name="name">membership.tree</field>
+    <field name="model">membership</field>
+    <field name="arch" type="xml">
+      <tree>
+        <field name="name" />
+        <field name="date_start" />
+        <field name="date_end" />
+        <field name="state" />
+        <field name="provider_unique_charseq" />
+      </tree>
+    </field>
+  </record>
+
+  <record id="membership_form" model="ir.ui.view">
+    <field name="name">membership.form</field>
+    <field name="model">membership</field>
+    <field name="arch" type="xml">
+      <form>
+        <header>
+          <field name="state" widget="statusbar" statusbar_visible="active,inactive,unknow,renew" />
+        </header>
+        <sheet>
+          <div>
+            <label for="name" class="oe_read_only" />
+            <h1>
+              <field name="name" placeholder="Name" required="1" />
+            </h1>
+          </div>
+          <group>
+            <group>
+              <field name="date_start" />
+              <field name="date_end" />
+              <field name="provider_unique_charseq" />
+            </group>
+            <group string="Membership information">
+              <field name="member_id" />
+              <!-- <field name="renew_id" /> -->
+            </group>
+          </group>
+          <notebook>
+            <page string="Membership Options">
+              <field name="service_ids">
+                <tree>
+                  <field name="product_id" />
+                  <field name="option" />
+                  <field name="max_qty" />
+                  <field name="consumed_qty" />
+                  <field name="reamining_qty" />
+                </tree>
+              </field>
+            </page>
+          </notebook>
+        </sheet>
+        <div class="oe_chatter">
+          <field name="message_follower_ids" widget="mail_followers" />
+          <field name="activity_ids" widget="mail_activity" />
+          <field name="message_ids" widget="mail_thread" />
+        </div>
+      </form>
+    </field>
+  </record>
+
+  <record id="aca_membership_act_window" model="ir.actions.act_window">
+    <field name="name">membership</field>
+    <field name="res_model">membership</field>
+    <field name="view_mode">tree,form</field>
+    <field name="target">current</field>
+    <field name="domain">[]</field>
+    <field name="context">{}</field>
+  </record>
+
+  <menuitem 
+    id="membership_menu" 
+    name="Membership" 
+    parent="membership_menu_root" 
+    sequence="10"
+    action="aca_membership_act_window" 
+  />
+
+</odoo>

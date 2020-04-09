@@ -1,0 +1,22 @@
+<odoo>
+  <data>
+    <record id="group_manager_membership_provider" model="res.groups">
+      <field name="name">Administrateur des fournisseurs d'adhésions (FA)</field>
+    </record>
+    <record id="group_manager_membership_offer" model="res.groups">
+      <field name="name">Administrateur des offres</field>
+    </record>
+    <record id="group_manager_membership" model="res.groups">
+      <field name="name">Administrateur des adhésions</field>
+    </record>
+    <record id="group_manager_customer_relationship" model="res.groups">
+      <field name="name">Administrateur Relation client</field>
+    </record>
+    <record id="group_user_customer_relationship" model="res.groups">
+      <field name="name">Utilisateur Relation client (RC)</field>
+    </record>
+    <record id="group_user_limited_customer_relationship" model="res.groups">
+      <field name="name">Utilisateur limité Relation client</field>
+    </record>
+  </data>
+</odoo>
