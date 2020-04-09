@@ -1,0 +1,193 @@
+# Include this file! See https://docs.gitlab.com/ce/ci/yaml/#include
+image: tecnativa/doodba-qa
+
+variables:
+  ADDON_CATEGORIES: "--private" # Replaced by ADDONS_STANDARD and ADDONS_CUSTOM
+  COMPOSE_FILE: test.yaml
+  COMPOSE_PROJECT_NAME: &pipeline $CI_PROJECT_PATH_SLUG-$CI_PIPELINE_ID
+  DOODBA_WITHOUT_DEMO: "false"
+  ODOO_IMAGE: *pipeline
+  # You must change this variable
+  ##REVIEW_DOMAIN:
+  ##VERBOSE: "1"
+
+stages:
+  - build
+  - rebuild
+  - install
+  - test
+  - runbot
+  - push
+  - deploy
+  - staging
+  - production
+  - cleanup
+
+before_script:
+  - docker login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+  - git clone -b ${ODOO_CI_PROJECT_BRANCH} https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.sudokeys.com/ic/${ODOO_CI_PROJECT}.git /project
+  - cp -pR * /project/odoo/custom/src/private/
+  - cd /project
+  - secrets-setup
+  - networks-autocreate
+
+# Build
+Pull and build images:
+  stage: build
+  script:
+    - build
+
+.Closed PRs:
+  stage: build
+  allow_failure: true
+  script:
+    - closed-prs
+
+# Manual jobs to update registry when you need to rebuild and there have been
+# no code changes on your scaffolding, or when the rest of your
+# pipeline failed, but you still need the new image in the registry
+Rebuild without cache and push: &rebuild
+  stage: rebuild
+  when: manual
+  only: &main_branches
+    - /^\d+\.\d+$/
+  script:
+    # Use or not cache depending on $BUILD_FLAGS for the job
+    - test "$DO_BUILD" == 0 || build
+    # Obtain the services that build images
+    - image_builder_services="$(docker-compose config | yq -r '.services|to_entries|map(select(.value.build))[].key')"
+    # Re-tag pipeline-specific images with their real registry names
+    - |
+      for service in $image_builder_services; do
+        pipeline_image="$(docker-compose config | yq --arg service "$service" -r '.services[$service].image')"
+        real_image="$(env -u ODOO_IMAGE docker-compose config | yq --arg service "$service" -r '.services[$service].image')"
+        docker image tag "$pipeline_image" "$real_image"
+      done
+    # Push real images to the registry, with any others being built
+    - env -u ODOO_IMAGE docker-compose push
+
+Rebuild with cache and push:
+  <<: *rebuild
+  variables:
+    BUILD_FLAGS: ""
+
+# Install
+Install addons:
+  stage: install
+  variables:
+    # Install all addons that are dependencies of the ones tested later
+    ADDONS_STANDARD: >
+      --dependencies
+      --extra
+      --private
+  script:
+    # If you supply $ADDON_CATEGORIES, it will be used raw; but you can use
+    # instead a combination of $ADDONS_STANDARD (which can be in a template)
+    # and $ADDONS_CUSTOM (which can be in the scaffolding itself) to make it
+    # easier to add or remove addons to white or black lists
+    - &addon-categories export ADDON_CATEGORIES="${ADDON_CATEGORIES:-$ADDONS_STANDARD $ADDONS_CUSTOM}"
+    - addons-install
+
+# Lint
+Pylint loose: &pylint
+  variables:
+    ADDONS_STANDARD: --private
+    LINT_MODE: "loose"
+  script:
+    - *addon-categories
+    - pylint
+
+Pylint strict:
+  <<: *pylint
+  variables:
+    LINT_MODE: "strict"
+  except: *main_branches
+
+Pylint strict warnings:
+  <<: *pylint
+  allow_failure: true
+  variables:
+    LINT_MODE: "strict"
+  only: *main_branches
+
+Pylint beta warnings:
+  <<: *pylint
+  allow_failure: true
+  variables:
+    LINT_MODE: "beta"
+
+Flake8:
+  variables:
+    ADDONS_STANDARD: --private
+  script:
+    - *addon-categories
+    - flake8
+
+# Automated tests
+Test addons:
+  variables:
+    # Testing --private addons is almost mandatory, and testing --extra addons
+    # (usually from OCA) or --core addons can help being sure
+    # your project has a good integration status, although there's a bigger
+    # risk that external addon changes break your pipelines innecessarily;
+    # you can also blacklist specific addons adding `--without myaddon` as
+    # many times as needed, or include them always by adding `--with myaddon`
+    ADDONS_STANDARD: >
+      --extra
+      --private
+      --without auth_brute_force
+      --without database_cleanup
+      --without website_sale_require_login
+  script:
+    - *addon-categories
+    - coverage
+    - mv artifacts/coverage $CI_PROJECT_DIR
+  artifacts:
+    paths:
+      - coverage
+    when: always
+    expire_in: 2 weeks
+  coverage: /TOTAL.* (\d+)%/
+
+# Free resources if something failed
+Cleanup failed test resources:
+  stage: cleanup
+  variables:
+    # Do not remove local images, just in case you want to force-push them
+    # using cache; you are expected to configure some kind of cleanup
+    # for your runner docker engine externally
+    DESTROY_FLAGS: -v --remove-orphans
+  when: on_failure
+  script:
+    - shutdown
+
+# Runbot
+Boot runbot:
+  stage: runbot
+  variables:
+    DOMAIN_TEST: $CI_ENVIRONMENT_SLUG.$REVIEW_DOMAIN
+  environment:
+    name: review $CI_COMMIT_REF_NAME
+    # TODO Reuse $DOMAIN_TEST instead
+    # HACK https://gitlab.com/gitlab-org/gitlab-runner/issues/2487
+    url: https://$CI_ENVIRONMENT_SLUG.$REVIEW_DOMAIN
+    on_stop: Destroy runbot
+  script:
+    - docker-compose up -d
+
+Destroy runbot:
+  stage: runbot
+  when: manual
+  environment:
+    name: review $CI_COMMIT_REF_NAME
+    action: stop
+  script:
+    - destroy
+
+# Update registry
+Push docker image:
+  <<: *rebuild
+  stage: push
+  variables:
+    DO_BUILD: 0
+  when: on_success
